@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
 import os
+from fcntl import FASYNC
+
 import redis
 from aiobotocore.session import get_session
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 load_dotenv()
 
@@ -28,15 +31,25 @@ class S3Client:
             yield client
 
 
-
-
 class RedisClient:
     def __init__(self,
-                 host: str = "redis",
-                 port: str = "6379",
+                 host: str = os.getenv("redis_host"),
+                 port: str = os.getenv("redis_port"),
                  decode: bool = True):
         self.client = redis.Redis(host=host, port=port, decode_responses=decode)
 
-
     def get_client(self):
         return self.client
+
+
+class PGClient:
+    def __init__(self,
+                 url: str = f"postgresql+asyncpg://{os.getenv("DB_LOGIN")}:{os.getenv("DB_PASSWORD")}@{os.getenv("DB_HOST")}:5432/{os.getenv('DB_NAME')}",
+                 echo: bool = False
+                 ):
+        self.engine = create_async_engine(url=url, echo=echo)
+        self.session_factory = async_sessionmaker(bind=self.engine, autocommit=False)
+
+    async def get_session(self) -> AsyncSession:
+        async with self.session_factory() as session:
+            yield session
